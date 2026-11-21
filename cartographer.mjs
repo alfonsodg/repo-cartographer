@@ -18,7 +18,9 @@ Options:
   -j, --json              Print the raw index as JSON (no LLM call)
       --mermaid           Print a Mermaid diagram (no LLM call)
       --depth <n>         Module depth for --mermaid (default 2)
-      --max-modules <n>   Modules in the diagram (default 18)
+      --max-modules <n>   Modules in the diagram (default 22)
+      --flat              No architectural layer bands
+      --edge-labels       Show import counts on edges
       --max-files <n>     File scan limit (default: 25000)
       --timeout <s>       Request timeout in seconds (default: 180)
       --reasoning <lvl>   reasoning_effort: low|medium|high (default: low)
@@ -42,8 +44,10 @@ function parseArgs(argv) {
     out: null,
     json: false,
     mermaid: false,
+    flat: false,
+    edgeLabels: false,
     depth: 2,
-    maxModules: 18,
+    maxModules: 22,
     maxFiles: 25000,
     timeout: 180,
     reasoning: "low",
@@ -59,6 +63,8 @@ function parseArgs(argv) {
       case "-o": case "--out": opts.out = argv[++i]; break;
       case "-j": case "--json": opts.json = true; break;
       case "--mermaid": opts.mermaid = true; break;
+      case "--flat": opts.flat = true; break;
+      case "--edge-labels": opts.edgeLabels = true; break;
       case "--depth": opts.depth = Number(argv[++i]); break;
       case "--max-modules": opts.maxModules = Number(argv[++i]); break;
       case "--max-files": opts.maxFiles = Number(argv[++i]); break;
@@ -98,6 +104,8 @@ async function main() {
     const diagram = toMermaid(index, {
       depth: opts.depth,
       maxModules: opts.maxModules,
+      layers: !opts.flat,
+      edgeLabels: opts.edgeLabels,
     });
     const out = diagram.mermaid;
     if (opts.out) {
@@ -107,8 +115,13 @@ async function main() {
     } else {
       process.stdout.write(out);
     }
+    const layerText = Object.entries(diagram.layers)
+      .filter(([, n]) => n > 0)
+      .map(([role, n]) => `${role}:${n}`)
+      .join(" ");
     process.stderr.write(
-      dim(`${diagram.modules} modules · ${diagram.edges} edges · depth ${diagram.depth}`) + "\n"
+      dim(`${diagram.modules} modules · ${diagram.edges} edges · depth ${diagram.depth}`) +
+        (layerText ? dim(` · ${layerText}`) : "") + "\n"
     );
     return;
   }

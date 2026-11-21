@@ -229,12 +229,25 @@ function parsePyproject(raw) {
 function isEntryPoint(file, manifest) {
   const base = basename(file).toLowerCase();
   const stem = base.split(".")[0];
+
+  // `mod.rs` and `index.ts` are directory barrels, not program entry points: a
+  // crate root is `main.rs` or `lib.rs`. Treating every barrel as an entry
+  // labelled protocol internals as the top of the system.
+  if (stem === "mod" || stem === "index") {
+    if (manifest?.bin) {
+      const bins = typeof manifest.bin === "string" ? [manifest.bin] : Object.values(manifest.bin);
+      if (bins.some((p) => file.endsWith(p))) return true;
+    }
+    if (manifest?.main && file.endsWith(manifest.main)) return true;
+    return false;
+  }
+
   if (manifest?.bin) {
     const bins = typeof manifest.bin === "string" ? [manifest.bin] : Object.values(manifest.bin);
     if (bins.some((p) => file.endsWith(p))) return true;
   }
   if (manifest?.main && file.endsWith(manifest.main)) return true;
-  if (/^(main|index|app|server|cli|mod|lib|main\.rs)\.(ts|tsx|js|mjs|cjs|py|rs|go|java)$/.test(base)) return true;
+  if (/^(main|server|cli|lib|lib\.rs)\.(ts|tsx|js|mjs|cjs|py|rs|go|java)$/.test(base)) return true;
   return ENTRY_HINTS.includes(stem) && /\.(ts|tsx|js|mjs|cjs|py|rs|go)$/.test(base);
 }
 

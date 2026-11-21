@@ -29,9 +29,34 @@ test("emits a valid mermaid flowchart", async () => {
   try {
     const idx = await indexRepo(root);
     const { mermaid } = toMermaid(idx);
-    assert.match(mermaid, /^flowchart LR/);
+    assert.match(mermaid, /^flowchart (TD|LR)/);
     assert.match(mermaid, /M0\["/, "declares at least one node");
-    assert.ok(mermaid.includes("-->"), "has at least one edge");
+    assert.ok(mermaid.includes("-->") || mermaid.includes("==>"), "has at least one edge");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("groups modules into architectural layers", async () => {
+  const root = await makeFixture();
+  try {
+    const idx = await indexRepo(root);
+    const { mermaid, layers } = toMermaid(idx);
+    assert.match(mermaid, /subgraph (ENTRY|CORE|API|LEAF)/, "emits at least one layer band");
+    const total = Object.values(layers).reduce((a, b) => a + b, 0);
+    assert.ok(total > 0, "layer summary counts modules");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("layers can be turned off for a flat graph", async () => {
+  const root = await makeFixture();
+  try {
+    const idx = await indexRepo(root);
+    const { mermaid } = toMermaid(idx, { layers: false, direction: "LR" });
+    assert.match(mermaid, /^flowchart LR/);
+    assert.ok(!mermaid.includes("subgraph"), "flat mode emits no subgraphs");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -62,30 +62,48 @@ cartographer /path/to/repo
 ## The diagram
 
 `--mermaid` prints a flowchart you can paste straight into a README — GitHub,
-GitLab and most markdown viewers render it without any extra tooling.
+GitLab and most markdown viewers render it without extra tooling.
+
+Modules are grouped into **architectural layers inferred from the import graph
+itself**, so the diagram shows how the system is shaped instead of a wall of
+boxes:
+
+| Layer | How it is detected |
+| --- | --- |
+| **Entry points** | Known entry files (`main`, `cli`) or modules that import outward and are barely imported |
+| **Core** | Imported by a large share of the repo — the load-bearing code |
+| **Boundaries** | Wide fan-in *and* fan-out; interfaces other layers route through |
+| **Leaves** | Mostly consumed, import little |
+
+Each box shows the module path and its degree as `<b>in</b> in / out`. Arrow
+weight encodes how many import statements connect two modules, so `==>` marks
+the heaviest coupling.
 
 ```mermaid
-flowchart LR
-  M0["schema<br/><small>src/api/schema</small><br/><b>77</b>"]
-  M1["app<br/><small>src/app</small><br/><b>61</b>"]
-  M2["client<br/><small>src/client</small><br/><b>57</b>"]
-  M3["protocol<br/><small>src/protocol</small><br/><b>51</b>"]
-  M4["main<br/><small>src/main</small><br/><b>50</b>"]
-  M4 --> M1
-  M4 --> M2
-  M0 --> M3
+flowchart TD
+  subgraph ENTRY["Entry points"]
+    direction LR
+    M0["client<br/><small>src/client</small><br/><b>7</b> in / 50 out"]
+    M1["main<br/><small>src/main</small><br/><b>0</b> in / 50 out"]
+  end
+  subgraph CORE["Core — imported by everything"]
+    direction LR
+    M2["schema<br/><small>src/api/schema</small><br/><b>76</b> in / 1 out"]
+    M3["protocol<br/><small>src/protocol</small><br/><b>45</b> in / 6 out"]
+  end
+  M1 --> M0
+  M0 --> M2
 ```
 
-Each box is a module and the number is how many imports point at it — the
-de-facto core of the system. Edges are aggregated to module level, because a
-per-file graph of a 500-file repository is unreadable. Only modules that take
-part in cross-module imports appear; isolated files add noise, not structure.
+Only modules that take part in cross-module imports appear; isolated files add
+noise, not structure. Unconnected code is reported in the briefing instead.
 
 Tuning:
 
 ```bash
 node cartographer.mjs . --mermaid --depth 1        # coarser grouping
 node cartographer.mjs . --mermaid --max-modules 30 # more boxes
+node cartographer.mjs . --mermaid --flat           # no layer bands
 node cartographer.mjs . --mermaid -o ARCH.md       # save it
 ```
 
