@@ -17,7 +17,7 @@ Options:
   -j, --json              Print the raw index as JSON (no LLM call)
       --max-files <n>     File scan limit (default: 25000)
       --timeout <s>       Request timeout in seconds (default: 180)
-      --reasoning <lvl>   reasoning_effort: off|low|medium|high (default: low)
+      --reasoning <lvl>   reasoning_effort: low|medium|high (default: low)
   -h, --help              Show this help
 
 Environment:

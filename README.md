@@ -63,12 +63,12 @@ cartographer /path/to/repo
 | Flag | Meaning |
 | --- | --- |
 | `-q, --question <text>` | Ask one question instead of a briefing |
-| `-m, --model <id>` | Cerebras model id |
+| `-m, --model <id>` | Cerebras model id (default Kimi K3.1 Pro trial) |
 | `-o, --out <file>` | Write output to a file |
 | `-j, --json` | Print the raw index, no model call |
 | `--max-files <n>` | Scan limit (default 25000) |
 | `--timeout <s>` | Request timeout (default 180) |
-| `--reasoning <lvl>` | `reasoning_effort`: off, low, medium, high |
+| `--reasoning <lvl>` | `reasoning_effort`: low, medium, high |
 
 Environment: `CEREBRAS_API_KEY`; set `REPO_CARTOGRAPHER_DEBUG=1` to dump the
 prompt.
@@ -108,26 +108,33 @@ src/cerebras.mjs     Cerebras Inference API client with TPS measurement
 bench.mjs            benchmark across repositories
 ```
 
-## Measured on a real repo
+## Measured on real repos
 
-`camoufox` (805 files, 441 source, 5.5 MB of source):
+Benchmark with `moonshotai-kimi-k3.1-pro-trial` (reasoning on, `low`):
 
-```text
-scan       180 ms
-inference  1491 ms
-output     1511 tokens
-speed      1013 tok/s
-```
+| repo | files | source | scan | compression | inference | speed |
+| --- | --- | --- | --- | --- | --- | --- |
+| camoufox | 805 | 441 | 184 ms | 322x | 5.6 s | 215 tok/s |
+| herdr | 1737 | 516 | 201 ms | 823x | 10.6 s | 113 tok/s |
 
-The whole briefing — structure, architecture, reading order, main flow, risks
-and first tasks — lands in under two seconds.
+The structural scan is the part that stays constant: under a quarter of a second
+whether the repo has 800 files or 1,700. Inference time scales with how much the
+model has to write, not with how big the repo is — that is the whole point of
+compressing first.
 
-Benchmark across repositories:
+A full briefing for an 805-file repository (`camoufox`) is 1,740 output tokens
+from 4,827 input tokens, and reads like this:
 
-| repo | files | scan ms | compression |
-| --- | --- | --- | --- |
-| camoufox | 805 | 180 | 322x |
-| herdr | 1737 | 327 | 823x |
+> **`browser/patches/`** — The core Firefox changes: navigator, screen, WebGL,
+> fonts, locale, timezone, WebRTC, media, input, and automation-behavior patches.
+> `patch-dependencies.md` documents patch ordering and relationships.
+>
+> **Fingerprint consistency:** Python and TypeScript contain parallel
+> utility/fingerprint implementations. Drift between them — or between
+> configuration and native injection — can create a detectable, impossible
+> device.
+
+Those are real paths and real risks from the index, not generic advice.
 
 ## Tests
 
