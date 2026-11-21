@@ -1,0 +1,19 @@
+{
+  "name": "repo-cartographer",
+  "version": "1.0.0",
+  "description": "Explain any codebase in one command — structural index plus Kimi K3.1 Pro on Cerebras",
+  "type": "module",
+  "bin": {
+    "cartographer": "./cartographer.mjs"
+  },
+  "scripts": {
+    "start": "node cartographer.mjs",
+    "index": "node cartographer.mjs . --json",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": ["codebase", "analysis", "cerebras", "kimi", "agent", "onboarding"],
+  "license": "MIT"
+}
