@@ -27,6 +27,15 @@ const IMPORT_PATTERNS = [
   /(?:^|\n)\s*import\s+([\w.]+)/g,
 ];
 
+// Rust module declarations and use paths need their own handling: they are not
+// file paths, they are crate-relative module paths that must be resolved
+// against the source root.
+const RUST_MOD = /(?:^|\n)\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([a-z_][a-z0-9_]*)\s*;/g;
+const RUST_USE = /(?:^|\n)\s*(?:pub\s+)?use\s+(?:crate|super|self)(?:::([a-z_][a-z0-9_]*))+/g;
+const GO_IMPORT = /(?:^|\n)\s*import\s+(?:\(\s*)?(?:[\w.]+\s+)?"([\w./-]+)"/g;
+
+const SRC_ROOTS = ["src", "lib", "app", "internal", "pkg", "crates"];
+
 const ENTRY_HINTS = [
   "main", "index", "app", "server", "cli", "entry", "bootstrap",
   "mod", "lib", "root", "handler", "worker",
@@ -108,6 +117,64 @@ function normalizeSpec(spec, fromFile, root) {
   let target = join(dir, spec).replace(/\\/g, "/");
   const rel = relative(root, target).replace(/\\/g, "/");
   return rel.startsWith("..") ? null : rel;
+}
+
+/**
+ * Rust `mod foo;` resolves to a sibling `foo.rs` or `foo/mod.rs`. `use
+ * crate::a::b` resolves to a module under the crate source root. Without this,
+ * a Rust repository produces an empty import graph.
+ */
+function resolveRustModule(name, fromFile, root, allFiles) {
+  const dir = dirname(fromFile);
+
+  // sibling module: foo.rs or foo/mod.rs next to the declaring file
+  for (const cand of [`${name}.rs`, `${name}/mod.rs`]) {
+    const abs = join(dir, cand);
+    if (allFiles.has(abs)) {
+      return relative(root, abs).replace(/\\/g, "/");
+    }
+  }
+
+  // nested module reached from a directory module file (foo/mod.rs -> foo/bar.rs)
+  if (fromFile.endsWith("mod.rs")) {
+    for (const cand of [`${name}.rs`, `${name}/mod.rs`]) {
+      const abs = join(dir, cand);
+      if (allFiles.has(abs)) return relative(root, abs).replace(/\\/g, "/");
+    }
+  }
+
+  return null;
+}
+
+function resolveRustUse(segments, fromFile, root, allFiles) {
+  if (segments.length === 0) return null;
+
+  // find the crate root by walking up to the nearest directory holding src/
+  let base = dirname(fromFile);
+  let guard = 0;
+  while (guard++ < 12) {
+    if (allFiles.has(join(base, "src", "lib.rs")) || allFiles.has(join(base, "src", "main.rs"))) {
+      base = join(base, "src");
+      break;
+    }
+    const parent = dirname(base);
+    if (parent === base) break;
+    base = parent;
+  }
+
+  const candidates = [];
+  const joined = segments.join("/");
+  for (const start of [base, join(base, "src")]) {
+    candidates.push(join(start, `${joined}.rs`));
+    candidates.push(join(start, joined, "mod.rs"));
+    candidates.push(join(start, `${segments[0]}.rs`));
+    candidates.push(join(start, segments[0], "mod.rs"));
+  }
+
+  for (const cand of candidates) {
+    if (allFiles.has(cand)) return relative(root, cand).replace(/\\/g, "/");
+  }
+  return null;
 }
 
 async function readManifests(root) {
@@ -240,6 +307,7 @@ export async function indexRepo(root, options = {}) {
   const importGraph = new Map();
   const externalDeps = new Map();
   const fileContents = new Map();
+  const allFiles = new Set(files);
 
   for (const entry of sourceFiles.slice(0, options.maxAnalyzedFiles ?? 4000)) {
     if (!["TypeScript", "JavaScript", "Python", "Rust", "Go"].includes(entry.lang)) continue;
@@ -247,12 +315,53 @@ export async function indexRepo(root, options = {}) {
     if (!content) continue;
     fileContents.set(entry.path, content);
 
-    const specs = extractImports(content, entry.lang);
     const rel = relative(root, entry.path).replace(/\\/g, "/");
-    const internal = [];
+    const internal = new Set();
+
+    if (entry.lang === "Rust") {
+      RUST_MOD.lastIndex = 0;
+      let m;
+      while ((m = RUST_MOD.exec(content)) !== null) {
+        const target = resolveRustModule(m[1], entry.path, root, allFiles);
+        if (target) internal.add(target);
+      }
+      RUST_USE.lastIndex = 0;
+      while ((m = RUST_USE.exec(content)) !== null) {
+        const pathPart = m[0].replace(/^\s*(pub\s+)?use\s+/, "").replace(/[;{].*$/, "").trim();
+        const segments = pathPart.split("::").slice(1).filter(Boolean);
+        const target = resolveRustUse(segments, entry.path, root, allFiles);
+        if (target && target !== rel) internal.add(target);
+      }
+      const externals = content.match(/^\s*(?:pub\s+)?(?:use|extern\s+crate)\s+([a-z_][a-z0-9_]*)/gm) ?? [];
+      for (const line of externals) {
+        const name = line.replace(/^\s*(?:pub\s+)?(?:use|extern\s+crate)\s+/, "").trim();
+        if (!["crate", "super", "self", "std", "core", "alloc"].includes(name)) {
+          externalDeps.set(name, (externalDeps.get(name) ?? 0) + 1);
+        }
+      }
+      importGraph.set(rel, [...internal]);
+      continue;
+    }
+
+    if (entry.lang === "Go") {
+      GO_IMPORT.lastIndex = 0;
+      let m;
+      while ((m = GO_IMPORT.exec(content)) !== null) {
+        const spec = m[1];
+        const target = normalizeSpec(spec, entry.path, root);
+        if (target) internal.add(target);
+        else if (spec.includes(".") || spec.includes("/")) {
+          externalDeps.set(spec, (externalDeps.get(spec) ?? 0) + 1);
+        }
+      }
+      importGraph.set(rel, [...internal]);
+      continue;
+    }
+
+    const specs = extractImports(content, entry.lang);
     for (const spec of specs) {
       const target = normalizeSpec(spec, entry.path, root);
-      if (target) internal.push(target);
+      if (target) internal.add(target);
       else if (!spec.startsWith(".")) {
         const pkgName = spec.startsWith("@")
           ? spec.split("/").slice(0, 2).join("/")
@@ -260,7 +369,7 @@ export async function indexRepo(root, options = {}) {
         externalDeps.set(pkgName, (externalDeps.get(pkgName) ?? 0) + 1);
       }
     }
-    importGraph.set(rel, internal);
+    importGraph.set(rel, [...internal]);
   }
 
   const inDegree = new Map();

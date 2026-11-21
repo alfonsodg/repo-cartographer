@@ -141,3 +141,82 @@ test("respects maxFiles limit", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+async function makeRustFixture() {
+  const root = join(tmpdir(), `carto-rust-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  await mkdir(join(root, "src", "api"), { recursive: true });
+  await mkdir(join(root, "src", "app"), { recursive: true });
+
+  await writeFile(join(root, "Cargo.toml"), [
+    "[package]",
+    'name = "fixture-rs"',
+    'version = "0.3.0"',
+    "",
+    "[dependencies]",
+    'tokio = { version = "1", features = ["full"] }',
+    'serde = "1"',
+  ].join("\n"));
+
+  await writeFile(join(root, "src", "main.rs"), [
+    "mod api;",
+    "mod app;",
+    "use crate::api::schema;",
+    "use tokio::runtime;",
+    "fn main() {}",
+  ].join("\n"));
+
+  await writeFile(join(root, "src", "api", "mod.rs"), [
+    "pub mod schema;",
+    "use crate::app::state;",
+  ].join("\n"));
+
+  await writeFile(join(root, "src", "api", "schema.rs"), [
+    "use serde::Serialize;",
+    "pub struct Op;",
+  ].join("\n"));
+
+  await writeFile(join(root, "src", "app", "mod.rs"), [
+    "pub mod state;",
+  ].join("\n"));
+
+  await writeFile(join(root, "src", "app", "state.rs"), "pub struct State;");
+
+  return root;
+}
+
+test("resolves rust mod declarations into the import graph", async () => {
+  const root = await makeRustFixture();
+  try {
+    const idx = await indexRepo(root);
+    const withTargets = idx.importEdges.filter((e) => e.to.length > 0);
+    assert.ok(
+      withTargets.length >= 2,
+      `expected resolved rust edges, got ${withTargets.length}: ${JSON.stringify(idx.importEdges)}`
+    );
+    assert.ok(
+      idx.coreModules.length > 0,
+      `expected core modules in a rust repo, got ${JSON.stringify(idx.coreModules)}`
+    );
+    const coreFiles = idx.coreModules.map((m) => m.file);
+    assert.ok(
+      coreFiles.some((f) => f.endsWith("schema.rs") || f.endsWith("state.rs") || f.endsWith("mod.rs")),
+      `expected a rust module in core, got ${JSON.stringify(coreFiles)}`
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("detects rust crate dependencies but not std", async () => {
+  const root = await makeRustFixture();
+  try {
+    const idx = await indexRepo(root);
+    const names = idx.externalDependencies.map((d) => d.name);
+    assert.ok(names.includes("serde"), `expected serde, got ${names}`);
+    assert.ok(names.includes("tokio"), `expected tokio, got ${names}`);
+    assert.ok(!names.includes("std"), "std must not count as a dependency");
+    assert.ok(!names.includes("crate"), "crate is not a dependency");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

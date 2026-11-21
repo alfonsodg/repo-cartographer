@@ -2,14 +2,12 @@
 
 Explain any codebase in one command.
 
-Point it at a repository and get a briefing an engineer can actually use: what
-the project is, how it is organised, where to start reading, how a request
-flows through the system, which areas are fragile, and what to do in the first
-week.
+Point it at a repository and get two things a new maintainer actually needs: a
+**diagram of how the system is put together**, and a written briefing on what to
+read first. Both come from the same structural scan, which runs without a model.
 
-Built for the **Cerebras × Kimi K3.1 Pro Hackathon**. The speed of Cerebras
-inference is the point: a structural scan plus a full briefing in seconds, not
-minutes.
+Built for the **Cerebras × Kimi K3.1 Pro Hackathon**. The model only sees a
+compressed map of the repo, never the source — that is what makes it fast.
 
 ## Why it is fast
 
@@ -41,6 +39,9 @@ No dependencies. Node 20+ only.
 # Full briefing
 node cartographer.mjs /path/to/repo
 
+# A module-level diagram, renders natively on GitHub
+node cartographer.mjs . --mermaid
+
 # Ask a specific question
 node cartographer.mjs . -q "where is authentication handled?"
 
@@ -58,6 +59,41 @@ npm link
 cartographer /path/to/repo
 ```
 
+## The diagram
+
+`--mermaid` prints a flowchart you can paste straight into a README — GitHub,
+GitLab and most markdown viewers render it without any extra tooling.
+
+```mermaid
+flowchart LR
+  M0["schema<br/><small>src/api/schema</small><br/><b>77</b>"]
+  M1["app<br/><small>src/app</small><br/><b>61</b>"]
+  M2["client<br/><small>src/client</small><br/><b>57</b>"]
+  M3["protocol<br/><small>src/protocol</small><br/><b>51</b>"]
+  M4["main<br/><small>src/main</small><br/><b>50</b>"]
+  M4 --> M1
+  M4 --> M2
+  M0 --> M3
+```
+
+Each box is a module and the number is how many imports point at it — the
+de-facto core of the system. Edges are aggregated to module level, because a
+per-file graph of a 500-file repository is unreadable. Only modules that take
+part in cross-module imports appear; isolated files add noise, not structure.
+
+Tuning:
+
+```bash
+node cartographer.mjs . --mermaid --depth 1        # coarser grouping
+node cartographer.mjs . --mermaid --max-modules 30 # more boxes
+node cartographer.mjs . --mermaid -o ARCH.md       # save it
+```
+
+`--depth` controls how many directory levels define a module. At depth 1 you get
+`src/api`; at depth 2 you get `src/api/schema`. A file that sits next to its
+siblings (`src/layout.rs`) stays its own module rather than collapsing into the
+parent directory, which would otherwise merge unrelated code into one box.
+
 ## Options
 
 | Flag | Meaning |
@@ -66,6 +102,9 @@ cartographer /path/to/repo
 | `-m, --model <id>` | Cerebras model id (default Kimi K3.1 Pro trial) |
 | `-o, --out <file>` | Write output to a file |
 | `-j, --json` | Print the raw index, no model call |
+| `--mermaid` | Print a Mermaid diagram, no model call |
+| `--depth <n>` | Module depth for `--mermaid` (default 2) |
+| `--max-modules <n>` | Modules in the diagram (default 18) |
 | `--max-files <n>` | Scan limit (default 25000) |
 | `--timeout <s>` | Request timeout (default 180) |
 | `--reasoning <lvl>` | `reasoning_effort`: low, medium, high |
@@ -103,8 +142,9 @@ hang it.
 ```text
 cartographer.mjs     CLI, argument parsing, output formatting
 src/indexer.mjs      structural scan and import graph
+src/mermaid.mjs      module-level diagram export
 src/prompt.mjs       index to prompt compression
-src/cerebras.mjs     Cerebras Inference API client with TPS measurement
+src/cerebras.mjs     Cerebras Inference API client with timing breakdown
 bench.mjs            benchmark across repositories
 ```
 

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { indexRepo } from "./src/indexer.mjs";
 import { buildPrompt, SYSTEM_BRIEF } from "./src/prompt.mjs";
 import { chat, resolveApiKey, DEFAULT_MODEL } from "./src/cerebras.mjs";
+import { toMermaid } from "./src/mermaid.mjs";
 
 const HELP = `repo-cartographer — explain any codebase in one command
 
@@ -15,6 +16,9 @@ Options:
   -m, --model <id>        Cerebras model (default: ${DEFAULT_MODEL})
   -o, --out <file>        Write the briefing to a file
   -j, --json              Print the raw index as JSON (no LLM call)
+      --mermaid           Print a Mermaid diagram (no LLM call)
+      --depth <n>         Module depth for --mermaid (default 2)
+      --max-modules <n>   Modules in the diagram (default 18)
       --max-files <n>     File scan limit (default: 25000)
       --timeout <s>       Request timeout in seconds (default: 180)
       --reasoning <lvl>   reasoning_effort: low|medium|high (default: low)
@@ -37,6 +41,9 @@ function parseArgs(argv) {
     model: DEFAULT_MODEL,
     out: null,
     json: false,
+    mermaid: false,
+    depth: 2,
+    maxModules: 18,
     maxFiles: 25000,
     timeout: 180,
     reasoning: "low",
@@ -51,6 +58,9 @@ function parseArgs(argv) {
       case "-m": case "--model": opts.model = argv[++i]; break;
       case "-o": case "--out": opts.out = argv[++i]; break;
       case "-j": case "--json": opts.json = true; break;
+      case "--mermaid": opts.mermaid = true; break;
+      case "--depth": opts.depth = Number(argv[++i]); break;
+      case "--max-modules": opts.maxModules = Number(argv[++i]); break;
       case "--max-files": opts.maxFiles = Number(argv[++i]); break;
       case "--timeout": opts.timeout = Number(argv[++i]); break;
       case "--reasoning": opts.reasoning = argv[++i]; break;
@@ -81,6 +91,25 @@ async function main() {
 
   if (opts.json) {
     console.log(JSON.stringify(index, null, 2));
+    return;
+  }
+
+  if (opts.mermaid) {
+    const diagram = toMermaid(index, {
+      depth: opts.depth,
+      maxModules: opts.maxModules,
+    });
+    const out = diagram.mermaid;
+    if (opts.out) {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(opts.out, out);
+      process.stderr.write(green(`wrote ${opts.out}`) + "\n");
+    } else {
+      process.stdout.write(out);
+    }
+    process.stderr.write(
+      dim(`${diagram.modules} modules · ${diagram.edges} edges · depth ${diagram.depth}`) + "\n"
+    );
     return;
   }
 
