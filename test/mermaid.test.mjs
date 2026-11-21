@@ -152,3 +152,38 @@ test("single-package repos explain the empty graph instead of drawing nothing", 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("node classes are wired to the classDefs so layers get colour", async () => {
+  const root = await makeFixture();
+  try {
+    const idx = await indexRepo(root);
+    const { mermaid } = toMermaid(idx);
+    const nodeLines = mermaid
+      .split("\n")
+      .filter((l) => /^\s+M\d+\["/.test(l));
+    assert.ok(nodeLines.length > 0, "has nodes");
+    for (const line of nodeLines) {
+      assert.match(
+        line,
+        /\]:::(entry|core|api|leaf)/,
+        `every node needs a class suffix, got: ${line.trim()}`
+      );
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("flat mode does not reference layer subgraph ids", async () => {
+  const root = await makeFixture();
+  try {
+    const idx = await indexRepo(root);
+    const { mermaid } = toMermaid(idx, { layers: false });
+    assert.ok(
+      !/style (ENTRY|CORE|API|LEAF)/.test(mermaid),
+      "flat mode must not style subgraphs that do not exist"
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

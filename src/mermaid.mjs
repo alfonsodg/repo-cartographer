@@ -164,7 +164,9 @@ export function toMermaid(index, opts = {}) {
     const label = escapeLabel(shortLabel(node.key));
     const path = node.key === shortLabel(node.key) ? "" : `<br/><small>${escapeLabel(node.key)}</small>`;
     const fan = `<br/><b>${node.in}</b> in / ${node.out} out`;
-    return `    ${idFor(node.key)}["${label}${path}${fan}"]`;
+    // Without the class suffix the classDef blocks are inert and every box
+    // renders the same colour, which defeats the point of the layers.
+    return `    ${idFor(node.key)}["${label}${path}${fan}"]:::${node.role}`;
   };
 
   const lines = [];
@@ -207,15 +209,17 @@ export function toMermaid(index, opts = {}) {
     lines.push(`  classDef ${role} ${ROLE_STYLE[role]};`);
   }
   lines.push("  classDef default fill:#131a26,stroke:#2a3344,color:#e2e7f0;");
-  lines.push(
-    "  classDef layer fill:#0e131d,stroke:#243049,color:#5c667a,stroke-dasharray:4 4;"
-  );
 
-  // Style the layer bands so the diagram reads on a dark surface too.
-  for (const role of ROLE_ORDER) {
-    const group = byRole.get(role);
-    if (!group || group.length === 0) continue;
-    lines.push(`  style ${role.toUpperCase()} fill:#0e131d,stroke:#243049,color:#7b869c;`);
+  // Only style the layer bands when the subgraphs actually exist. Referencing
+  // ENTRY/CORE/API/LEAF in flat mode makes mermaid invent four empty nodes.
+  if (useLayers) {
+    for (const role of ROLE_ORDER) {
+      const group = byRole.get(role);
+      if (!group || group.length === 0) continue;
+      lines.push(
+        `  style ${role.toUpperCase()} fill:#0e131d,stroke:#243049,color:#7b869c;`
+      );
+    }
   }
 
   const layerSummary = {};
