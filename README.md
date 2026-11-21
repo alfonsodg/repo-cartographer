@@ -146,6 +146,20 @@ Scan time is model-free and roughly flat as repositories grow:
 On `herdr`: 3.1M tokens of source compress to 3,929 tokens of map — 799× — which
 is what keeps the model call cheap.
 
+## Models
+
+Kimi K3.1 Pro is the model this was built for. Its preview queue fills up under
+load, so a request can come back `429 queue_exceeded` while the model still
+answers the next minute. Rather than fail on the first run, the client retries
+once on `gpt-oss-120b` — same provider, same API shape, less reasoning — and
+says so on stderr:
+
+```text
+moonshotai-kimi-k3.1-pro-trial was unavailable — answered with gpt-oss-120b
+```
+
+Point `--model` at anything else to skip the fallback.
+
 ## On throughput numbers
 
 Cerebras returns a server-side timing breakdown and the split matters:

@@ -85,6 +85,7 @@ function bold(s) { return `\x1b[1m${s}\x1b[0m`; }
 function dim(s) { return `\x1b[2m${s}\x1b[0m`; }
 function cyan(s) { return `\x1b[36m${s}\x1b[0m`; }
 function green(s) { return `\x1b[32m${s}\x1b[0m`; }
+function yellow(s) { return `\x1b[33m${s}\x1b[0m`; }
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
@@ -191,6 +192,13 @@ async function main() {
   const t = result.timing;
   const u = result.usage;
   const pad = (s) => s.padEnd(8);
+
+  if (result.fellBackFrom) {
+    process.stderr.write(
+      yellow(`${result.fellBackFrom} was unavailable — answered with ${result.model}`) + "\n"
+    );
+  }
+
   process.stderr.write(
     "\n" +
     dim("─".repeat(60)) + "\n" +

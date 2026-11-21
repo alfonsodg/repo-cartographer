@@ -1,5 +1,13 @@
 export const DEFAULT_BASE_URL = "https://api.cerebras.ai/v1";
+
+// Kimi is the model this was built for, but its preview queue fills up under
+// load and answers 429 queue_exceeded. The fallback keeps the tool working
+// instead of failing on the first run: same provider, same API shape, only the
+// reasoning quality differs.
 export const DEFAULT_MODEL = "moonshotai-kimi-k3.1-pro-trial";
+export const FALLBACK_MODEL = "gpt-oss-120b";
+
+export const FALLBACK_STATUS = new Set([429, 503]);
 
 export function resolveApiKey() {
   const fromEnv = process.env.CEREBRAS_API_KEY?.trim();
@@ -26,6 +34,29 @@ export async function chat({
   temperature = 0.2,
   reasoningEffort = "low",
   signal,
+  fallbackModel = FALLBACK_MODEL,
+}) {
+  try {
+    return await requestOnce({
+      apiKey, baseUrl, model, messages, maxTokens, temperature, reasoningEffort, signal,
+    });
+  } catch (err) {
+    // A full preview queue is transient and says nothing about the request.
+    // Retrying on the stable model beats handing the caller a 429.
+    const transient = FALLBACK_STATUS.has(err.status) && fallbackModel && fallbackModel !== model;
+    if (!transient) throw err;
+
+    const retried = await requestOnce({
+      apiKey, baseUrl, model: fallbackModel, messages, maxTokens, temperature,
+      reasoningEffort, signal,
+    });
+    retried.fellBackFrom = model;
+    return retried;
+  }
+}
+
+async function requestOnce({
+  apiKey, baseUrl, model, messages, maxTokens, temperature, reasoningEffort, signal,
 }) {
   const body = {
     model,
