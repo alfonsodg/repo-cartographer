@@ -133,3 +133,22 @@ test("modules with no import edges are left out of the diagram", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("single-package repos explain the empty graph instead of drawing nothing", async () => {
+  const root = join(tmpdir(), `carto-single-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  await mkdir(join(root, "src"), { recursive: true });
+  try {
+    await writeFile(join(root, "go.mod"), "module example.com/one\n\ngo 1.22\n");
+    // one Go package, no internal imports between modules
+    await writeFile(join(root, "src", "a.go"), "package one\n\nfunc A() {}\n");
+    await writeFile(join(root, "src", "b.go"), "package one\n\nfunc B() {}\n");
+
+    const idx = await indexRepo(root);
+    const res = toMermaid(idx);
+    assert.equal(res.empty, true, "should flag an empty graph");
+    assert.match(res.mermaid, /No internal import graph/, "explains why it is empty");
+    assert.match(res.reason ?? "", /single-package/, "reason names the cause");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -221,11 +221,38 @@ export function toMermaid(index, opts = {}) {
   const layerSummary = {};
   for (const role of ROLE_ORDER) layerSummary[role] = byRole.get(role).length;
 
+  // A single-package repository (all files under one namespace, common in Go
+  // and small Python libs) has no internal imports to draw. An empty diagram
+  // looks broken; say why instead.
+  if (keep.size === 0) {
+    const lang = (index.languages ?? []).map(([name]) => name).join("/");
+    const msg = [
+      "No internal import graph.",
+      `This looks like a single-package ${lang || "codebase"}:`,
+      "all files share one namespace, so there are no",
+      "cross-module edges to draw.",
+      "The written briefing is the useful output here.",
+    ].join("<br/>");
+    return {
+      mermaid:
+        "flowchart TD\n" +
+        `  EMPTY["${msg}"]\n` +
+        "  classDef default fill:#131a26,stroke:#2a3344,color:#e2e7f0;\n",
+      modules: 0,
+      edges: 0,
+      depth,
+      layers: layerSummary,
+      empty: true,
+      reason: "single-package repository — no internal import edges",
+    };
+  }
+
   return {
     mermaid: lines.join("\n") + "\n",
     modules: keep.size,
     edges: edges.length,
     depth,
     layers: layerSummary,
+    empty: false,
   };
 }
