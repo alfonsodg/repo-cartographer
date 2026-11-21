@@ -220,3 +220,32 @@ test("detects rust crate dependencies but not std", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("test files do not rank as core modules", async () => {
+  const root = join(tmpdir(), `carto-tests-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  await mkdir(join(root, "src"), { recursive: true });
+  try {
+    await writeFile(join(root, "package.json"), JSON.stringify({ name: "t", version: "1.0.0" }));
+
+    // api.ts is imported by two production files; api.test.ts mocks everything
+    await writeFile(join(root, "src", "api.ts"), "export const api = 1;\n");
+    await writeFile(join(root, "src", "app.ts"), 'import { api } from "./api";\nexport const a = api;\n');
+    await writeFile(join(root, "src", "view.ts"), 'import { api } from "./api";\nexport const v = api;\n');
+    await writeFile(
+      join(root, "src", "api.test.ts"),
+      'import { api } from "./api";\nimport "./app";\nimport "./view";\n'
+    );
+    await writeFile(join(root, "src", "app.test.ts"), 'import "./api";\nimport "./app";\n');
+
+    const idx = await indexRepo(root);
+    const core = idx.coreModules.map((m) => m.file);
+
+    assert.ok(core.some((f) => f.endsWith("api.ts")), `api.ts should be core: ${core}`);
+    assert.ok(
+      !core.some((f) => f.includes(".test.")),
+      `test files must not be core modules: ${core}`
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

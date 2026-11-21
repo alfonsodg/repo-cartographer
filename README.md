@@ -68,11 +68,11 @@ Modules are grouped into **architectural layers inferred from the import graph
 itself**, so the diagram shows how the system is shaped instead of a wall of
 boxes:
 
-| Layer | How it is detected |
+| Layer | Detected by |
 | --- | --- |
-| **Entry points** | Known entry files (`main`, `cli`) or modules that import outward and are barely imported |
+| **Entry points** | Known entries (`main`, `cli`), or modules that import outward and are rarely imported |
 | **Core** | Imported by a large share of the repo — the load-bearing code |
-| **Boundaries** | Wide fan-in *and* fan-out; interfaces other layers route through |
+| **Boundaries** | Wide fan-in *and* fan-out; interfaces others route through |
 | **Leaves** | Mostly consumed, import little |
 
 Each box shows the module path and its degree as `<b>in</b> in / out`. Arrow

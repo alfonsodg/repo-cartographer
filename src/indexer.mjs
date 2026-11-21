@@ -44,6 +44,16 @@ const ENTRY_HINTS = [
 const MAX_FILES = 25000;
 const MAX_READ_BYTES = 200_000;
 
+// Test paths pollute the core ranking: tests import half the codebase by
+// construction, so counting them puts api.test.ts next to api.ts. They are
+// still indexed, just not treated as architecture.
+const TEST_FILE =
+  /(^|\/)(tests?|__tests__|__mocks__|spec|e2e|fixtures?)\/|[._-](test|spec)\.[a-z]+$|(^|\/)test_[^/]+\.py$|(^|\/)[^/]+_test\.(go|py|rs)$|Tests?\.(java|kt)$/i;
+
+function isTestFile(path) {
+  return TEST_FILE.test(path);
+}
+
 async function safeRead(path, maxBytes = MAX_READ_BYTES) {
   try {
     const buf = await readFile(path);
@@ -386,17 +396,29 @@ export async function indexRepo(root, options = {}) {
   }
 
   const inDegree = new Map();
-  for (const [, targets] of importGraph) {
+  const prodInDegree = new Map();
+
+  for (const [source, targets] of importGraph) {
+    const sourceIsTest = isTestFile(source);
     for (const target of targets) {
       for (const [file] of importGraph) {
         if (file === target || file.startsWith(`${target}.`) || file.startsWith(`${target}/`)) {
           inDegree.set(file, (inDegree.get(file) ?? 0) + 1);
+          // Tests import half the codebase by construction. Counting them ranks
+          // test utilities next to the actual core, which is both wrong and a
+          // waste of prompt tokens: nobody onboards by reading api.test.ts.
+          if (!sourceIsTest) prodInDegree.set(file, (prodInDegree.get(file) ?? 0) + 1);
         }
       }
     }
   }
 
-  const coreModules = [...inDegree.entries()]
+  // Production graph when there is one, so the briefing describes the system
+  // rather than its test scaffolding.
+  const ranking = prodInDegree.size > 0 ? prodInDegree : inDegree;
+
+  const coreModules = [...ranking.entries()]
+    .filter(([file]) => !isTestFile(file))
     .sort((a, b) => b[1] - a[1])
     .slice(0, options.topCore ?? 20)
     .map(([file, count]) => ({ file, importedBy: count }));
