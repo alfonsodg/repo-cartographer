@@ -68,7 +68,19 @@ export async function chat({
   const usage = json.usage ?? {};
   const completionTokens = usage.completion_tokens ?? 0;
   const totalTokens = usage.total_tokens ?? 0;
-  const tps = completionTokens > 0 ? completionTokens / (elapsedMs / 1000) : 0;
+
+  // Cerebras reports server-side breakdown. queue_time is time spent waiting
+  // for capacity and must not be folded into throughput: during a shared
+  // hackathon it swamps the real decode rate.
+  const ti = json.time_info ?? {};
+  const queueMs = Math.round((ti.queue_time ?? 0) * 1000);
+  const promptMs = Math.round((ti.prompt_time ?? 0) * 1000);
+  const completionMs = Math.round((ti.completion_time ?? 0) * 1000);
+
+  const decodeSeconds = completionMs / 1000;
+  const tps = decodeSeconds > 0
+    ? completionTokens / decodeSeconds
+    : completionTokens / (elapsedMs / 1000);
 
   return {
     content: json.choices?.[0]?.message?.content ?? "",
@@ -78,9 +90,13 @@ export async function chat({
       promptTokens: usage.prompt_tokens ?? 0,
       completionTokens,
       totalTokens,
+      reasoningTokens: usage.completion_tokens_details?.reasoning_tokens ?? 0,
     },
     timing: {
       elapsedMs: Math.round(elapsedMs),
+      queueMs,
+      promptMs,
+      completionMs,
       tokensPerSecond: Number(tps.toFixed(1)),
     },
     model: json.model ?? model,

@@ -112,18 +112,34 @@ bench.mjs            benchmark across repositories
 
 Benchmark with `moonshotai-kimi-k3.1-pro-trial` (reasoning on, `low`):
 
-| repo | files | source | scan | compression | inference | speed |
-| --- | --- | --- | --- | --- | --- | --- |
-| camoufox | 805 | 441 | 184 ms | 322x | 5.6 s | 215 tok/s |
-| herdr | 1737 | 516 | 201 ms | 823x | 10.6 s | 113 tok/s |
+| repo | files | source | scan | compression |
+| --- | --- | --- | --- | --- |
+| camoufox | 805 | 441 | 184 ms | 322x |
+| herdr | 1737 | 516 | 201 ms | 823x |
 
-The structural scan is the part that stays constant: under a quarter of a second
-whether the repo has 800 files or 1,700. Inference time scales with how much the
-model has to write, not with how big the repo is — that is the whole point of
-compressing first.
+The structural scan is the part that stays constant: about a fifth of a second
+whether the repo has 800 files or 1,700. That is the whole point of compressing
+first — the expensive part is model-independent.
 
-A full briefing for an 805-file repository (`camoufox`) is 1,740 output tokens
-from 4,827 input tokens, and reads like this:
+### On throughput numbers
+
+Cerebras returns a server-side timing breakdown, and the split matters:
+
+```text
+queue     77783 ms   waiting for capacity
+prefill     344 ms
+decode     5971 ms
+speed      294.8 tok/s   (decode only)
+```
+
+During a busy period `queue_time` dominates, and folding it into a tok/s figure
+reports the platform's congestion rather than the model's speed. This tool
+reports **decode throughput** and shows queue time separately, so the number
+means something. Prefill is what the structural index removes: 4,260 tokens of
+map instead of 1.4M tokens of source.
+
+A full briefing for an 805-file repository (`camoufox`) is 1,956 output tokens
+(751 of them reasoning) from 4,976 input tokens, and reads like this:
 
 > **`browser/patches/`** — The core Firefox changes: navigator, screen, WebGL,
 > fonts, locale, timezone, WebRTC, media, input, and automation-behavior patches.

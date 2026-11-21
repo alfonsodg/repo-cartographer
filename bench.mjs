@@ -36,7 +36,8 @@ for (const repo of repos) {
     scanMs: idx.elapsedMs,
     compression: `${(sourceTokens / promptTokens).toFixed(0)}x`,
     promptTokens,
-    elapsedMs: null,
+    queueMs: null,
+    decodeMs: null,
     tps: null,
     outTokens: null,
   };
@@ -58,11 +59,12 @@ for (const repo of repos) {
         maxTokens: 1200,
         reasoningEffort: "low",
       });
-      row.elapsedMs = res.timing.elapsedMs;
+      row.queueMs = res.timing.queueMs;
+      row.decodeMs = res.timing.completionMs;
       row.tps = res.timing.tokensPerSecond;
       row.outTokens = res.usage.completionTokens;
     } catch (err) {
-      row.elapsedMs = `ERR ${err.status ?? ""}`;
+      row.decodeMs = `ERR ${err.status ?? ""}`;
       console.error(`${row.repo}: ${err.message}`);
     }
   }
@@ -72,14 +74,21 @@ for (const repo of repos) {
 
 const header = scanOnly
   ? ["repo", "files", "source", "languages", "scan ms", "compression"]
-  : ["repo", "files", "source", "languages", "scan ms", "compression", "infer ms", "tok/s"];
+  : [
+      "repo", "files", "source", "languages", "scan ms", "compression",
+      "queue ms", "decode ms", "tok/s",
+    ];
 
 console.log("");
 console.log("| " + header.join(" | ") + " |");
 console.log("|" + header.map(() => "---").join("|") + "|");
 for (const r of rows) {
   const cells = [r.repo, r.files, r.source, r.langs, r.scanMs, r.compression];
-  if (!scanOnly) cells.push(r.elapsedMs, r.tps);
+  if (!scanOnly) cells.push(r.queueMs, r.decodeMs, r.tps);
   console.log("| " + cells.join(" | ") + " |");
 }
 console.log("");
+if (!scanOnly) {
+  console.log("tok/s is decode throughput; queue time is reported separately.");
+  console.log("");
+}

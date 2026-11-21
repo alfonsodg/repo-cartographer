@@ -144,13 +144,19 @@ async function main() {
 
   const t = result.timing;
   const u = result.usage;
+  const pad = (s) => s.padEnd(8);
   process.stderr.write(
     "\n" +
     dim("─".repeat(60)) + "\n" +
-    `${cyan("model")}  ${result.model}\n` +
-    `${cyan("tokens")} ${u.completionTokens} out / ${u.promptTokens} in\n` +
-    `${cyan("time")}   ${t.elapsedMs} ms\n` +
-    `${cyan("speed")}  ${bold(t.tokensPerSecond + " tok/s")}\n`
+    `${cyan(pad("model"))} ${result.model}\n` +
+    `${cyan(pad("tokens"))} ${u.completionTokens} out / ${u.promptTokens} in` +
+      (u.reasoningTokens ? dim(` (${u.reasoningTokens} reasoning)`) : "") + "\n" +
+    `${cyan(pad("queue"))} ${t.queueMs} ms` + dim("  waiting for capacity") + "\n" +
+    `${cyan(pad("prefill"))} ${t.promptMs} ms\n` +
+    `${cyan(pad("decode"))} ${t.completionMs} ms\n` +
+    `${cyan(pad("total"))} ${t.elapsedMs} ms\n` +
+    `${cyan(pad("speed"))} ${bold(t.tokensPerSecond + " tok/s")}` +
+      dim("  (decode only)") + "\n"
   );
 }
 
