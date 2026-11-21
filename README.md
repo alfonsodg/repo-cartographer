@@ -70,7 +70,7 @@ boxes:
 
 | Layer | Detected by |
 | --- | --- |
-| **Entry points** | Known entries (`main`, `cli`), or modules that import outward and are rarely imported |
+| **Entry points** | Known entries (`main`, `cli`), or barely imported code |
 | **Core** | Imported by a large share of the repo — the load-bearing code |
 | **Boundaries** | Wide fan-in *and* fan-out; interfaces others route through |
 | **Leaves** | Mostly consumed, import little |
@@ -168,47 +168,53 @@ bench.mjs            benchmark across repositories
 
 ## Measured on real repos
 
-Benchmark with `moonshotai-kimi-k3.1-pro-trial` (reasoning on, `low`):
+Scan time is model-free and stays flat as repositories grow:
 
-| repo | files | source | scan | compression |
+| repo | stack | files | source | scan |
 | --- | --- | --- | --- | --- |
-| camoufox | 805 | 441 | 184 ms | 322x |
-| herdr | 1737 | 516 | 201 ms | 823x |
+| ohmycaptcha | Python | 76 | 18 | 13 ms |
+| gorm | Go | 174 | 163 | 18 ms |
+| OpenSign | JS | 678 | 532 | 206 ms |
+| got | TypeScript | 227 | 197 | 31 ms |
+| open-design | TypeScript | 2,494 | 965 | 969 ms |
+| herdr | Rust | 1,737 | 516 | 201 ms |
+| lightdash | TypeScript | 12,626 | 10,911 | 13.4 s |
 
-The structural scan is the part that stays constant: about a fifth of a second
-whether the repo has 800 files or 1,700. That is the whole point of compressing
-first — the expensive part is model-independent.
+On `herdr` (1,737 files, 516 source): 3.1M tokens of source compress to 3,929
+tokens of map — **799x** — which is what makes the model call cheap.
 
 ### On throughput numbers
 
 Cerebras returns a server-side timing breakdown, and the split matters:
 
 ```text
-queue     77783 ms   waiting for capacity
-prefill     344 ms
-decode     5971 ms
-speed      294.8 tok/s   (decode only)
+queue       20 ms   waiting for capacity
+prefill     61 ms
+decode     940 ms
+speed    1762.8 tok/s   (decode only)
 ```
 
-During a busy period `queue_time` dominates, and folding it into a tok/s figure
-reports the platform's congestion rather than the model's speed. This tool
-reports **decode throughput** and shows queue time separately, so the number
-means something. Prefill is what the structural index removes: 4,260 tokens of
-map instead of 1.4M tokens of source.
+That is `gpt-oss-120b`. The hackathon's `moonshotai-kimi-k3.1-pro-trial` is a
+reasoning model: excellent output, but during a busy event its `queue_time`
+reached 90+ seconds while decode stayed around 250 tok/s. The tool reports
+**decode throughput** and shows queue separately, because folding a congested
+queue into a tok/s figure reports the platform, not the model. Both models work:
 
-A full briefing for an 805-file repository (`camoufox`) is 1,956 output tokens
-(751 of them reasoning) from 4,976 input tokens, and reads like this:
+```bash
+node cartographer.mjs . --model gpt-oss-120b              # 1.7 s on 1,737 files
+node cartographer.mjs . --model moonshotai-kimi-k3.1-pro-trial
+```
 
-> **`browser/patches/`** — The core Firefox changes: navigator, screen, WebGL,
-> fonts, locale, timezone, WebRTC, media, input, and automation-behavior patches.
-> `patch-dependencies.md` documents patch ordering and relationships.
+A full briefing for `herdr` is around 1,600 output tokens, and reads like this:
+
+> `src/pane/terminal.rs`, `src/pane.rs` and `src/terminal/state.rs` are enormous
+> and combine stateful, byte-oriented behavior. `crates/ghostty-vt/src/bindings.rs`
+> is generated/native-facing code.
 >
-> **Fingerprint consistency:** Python and TypeScript contain parallel
-> utility/fingerprint implementations. Drift between them — or between
-> configuration and native injection — can create a detectable, impossible
-> device.
+> `src/api/schema.rs` is imported by 76 files. Changes can affect the CLI, socket
+> clients, subscriptions, persistence, and the published schema.
 
-Those are real paths and real risks from the index, not generic advice.
+Those are real paths and real coupling from the index, not generic advice.
 
 ## Tests
 
