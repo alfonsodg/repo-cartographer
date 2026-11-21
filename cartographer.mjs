@@ -20,6 +20,7 @@ Options:
       --depth <n>         Module depth for --mermaid (default 2)
       --max-modules <n>   Modules in the diagram (default 22)
       --flat              No architectural layer bands
+      --plain             Plain-text labels (for ASCII renderers)
       --edge-labels       Show import counts on edges
       --max-files <n>     File scan limit (default: 25000)
       --timeout <s>       Request timeout in seconds (default: 180)
@@ -45,6 +46,7 @@ function parseArgs(argv) {
     json: false,
     mermaid: false,
     flat: false,
+    plain: false,
     edgeLabels: false,
     depth: 2,
     maxModules: 22,
@@ -64,6 +66,7 @@ function parseArgs(argv) {
       case "-j": case "--json": opts.json = true; break;
       case "--mermaid": opts.mermaid = true; break;
       case "--flat": opts.flat = true; break;
+      case "--plain": opts.plain = true; break;
       case "--edge-labels": opts.edgeLabels = true; break;
       case "--depth": opts.depth = Number(argv[++i]); break;
       case "--max-modules": opts.maxModules = Number(argv[++i]); break;
@@ -105,6 +108,7 @@ async function main() {
       depth: opts.depth,
       maxModules: opts.maxModules,
       layers: !opts.flat,
+      plain: opts.plain,
       edgeLabels: opts.edgeLabels,
     });
     const out = diagram.mermaid;

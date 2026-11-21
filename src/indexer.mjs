@@ -296,8 +296,15 @@ export async function indexRepo(root, options = {}) {
     maxDepth: options.maxDepth ?? 14,
   };
 
+  // Optional progress sink. When present, the scan reports what it is doing so
+  // a viewer can build the graph while the work happens instead of waiting for
+  // a finished JSON blob.
+  const emit = typeof options.onEvent === "function" ? options.onEvent : null;
+
   const startedAt = Date.now();
   const { files, skipped } = await walk(root, limits);
+
+  emit?.({ type: "walked", files: files.length, skipped });
 
   const languages = {};
   const byExt = {};
@@ -320,6 +327,13 @@ export async function indexRepo(root, options = {}) {
     languages[lang] = (languages[lang] ?? 0) + 1;
     sourceFiles.push({ path: file, lang, size });
   }
+
+  emit?.({
+    type: "languages",
+    languages: Object.entries(languages).sort((a, b) => b[1] - a[1]),
+    sourceFiles: sourceFiles.length,
+    totalBytes,
+  });
 
   const manifests = await readManifests(root);
   const pkg = manifests["package.json"] ? parsePackageJson(manifests["package.json"]) : null;
@@ -393,6 +407,18 @@ export async function indexRepo(root, options = {}) {
       }
     }
     importGraph.set(rel, [...internal]);
+
+    // Report each analysed file with the edges it resolved, so a live viewer
+    // can grow the graph module by module instead of waiting for the tail.
+    if (emit) {
+      emit({
+        type: "file",
+        file: rel,
+        edges: [...internal],
+        index: importGraph.size,
+        total: Math.min(sourceFiles.length, options.maxAnalyzedFiles ?? 4000),
+      });
+    }
   }
 
   const inDegree = new Map();
