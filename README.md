@@ -7,6 +7,14 @@ Designed to run **inside OpenClaw** as a skill, with Cerebras inference for the
 written part. The scan is deterministic and model-free; only the briefing calls
 a model.
 
+## Demo
+
+<!-- VIDEO_URL goes here once the recording is published -->
+
+A 34-second recording shows the full run on a 1,737-file Rust repository: the
+scan completing in 201 ms, the module graph drawing itself with modules coloured
+by architectural layer, and the written briefing filling the left pane.
+
 ## Why it is fast
 
 Two stages, deliberately separated:
