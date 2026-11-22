@@ -19,7 +19,7 @@ Cerebras then reasons over that map and writes a briefing an engineer can
 actually use: architecture, where to start reading, how a request flows, what is
 fragile, what to do first. Up to 823x compression, sub-second structural scan.
 
-**Demo Video:** 60s max, attached.
+**Demo Video:** <https://youtu.be/PhbgnwGOZPI>
 
 **GitHub Repository:** <https://github.com/alfonsodg/repo-cartographer>
 
@@ -78,22 +78,23 @@ What broke, and what I learned:
 
 Repo: <https://github.com/alfonsodg/repo-cartographer>
 
-## 60-second video script
+## Video
 
-| time | shot | line |
-| --- | --- | --- |
-| 0-5s | terminal, `ls` of a big repo | "1,700 files. You just joined." |
-| 5-15s | `node cartographer.mjs .` | "It maps the repo, no model. 201 ms." |
-| 15-25s | scroll the index JSON | "823x compression. 1.4M tokens become 4,800." |
-| 25-50s | briefing scrolls in | "Kimi reads the map: architecture, reading order, main flow, what breaks." |
-| 50-57s | the scan vs infer readout | "Scan in a fifth of a second. Briefing in ten." |
-| 57-60s | repo URL on screen | "Repo Cartographer. Link below." |
+Published: <https://youtu.be/PhbgnwGOZPI>
 
-Recording notes:
+34 seconds, recorded on a 1,737-file Rust repository:
 
-- Clean desktop: no keys, no tabs, no notifications.
-- Show the scan-vs-inference contrast clearly — that is the selling point.
-- Standard build only (no speed patch) for public posts.
+| time | moment |
+| --- | --- |
+| 0:00 | the repository, freshly cloned |
+| 0:05 | the structural scan, no model involved |
+| 0:09 | 799x compression |
+| 0:11 | the module graph drawing itself, coloured by layer |
+| 0:26 | the written briefing in the left pane |
+
+The graph is generated from the import graph: modules are classified into
+entry, core, boundary and leaf by fan-in and fan-out, and arrow weight is the
+number of import statements.
 
 ## Facts to have ready
 

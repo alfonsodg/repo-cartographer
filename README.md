@@ -9,11 +9,11 @@ a model.
 
 ## Demo
 
-<!-- VIDEO_URL goes here once the recording is published -->
+[![Repo Cartographer demo](https://img.youtube.com/vi/PhbgnwGOZPI/maxresdefault.jpg)](https://youtu.be/PhbgnwGOZPI)
 
-A 34-second recording shows the full run on a 1,737-file Rust repository: the
-scan completing in 201 ms, the module graph drawing itself with modules coloured
-by architectural layer, and the written briefing filling the left pane.
+A 34-second recording of the full run on a 1,737-file Rust repository: the scan
+completing in 201 ms, the module graph drawing itself with modules coloured by
+architectural layer, and the written briefing filling the left pane.
 
 ## Why it is fast
 
